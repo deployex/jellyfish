@@ -9,8 +9,8 @@ defmodule Jellyfish.MixProject do
       version: @version,
       elixir: "~> 1.16",
       name: "Jellyfish",
-      source_url: "https://github.com/thiagoesteves/jellyfish",
-      homepage_url: "https://github.com/thiagoesteves/jellyfish",
+      source_url: "https://github.com/deployex/jellyfish",
+      homepage_url: "https://github.com/deployex/jellyfish",
       start_permanent: Mix.env() == :prod,
       test_coverage: test_coverage(),
       aliases: aliases(),
@@ -49,7 +49,7 @@ defmodule Jellyfish.MixProject do
       links: %{
         Documentation: "https://hexdocs.pm/jellyfish",
         Changelog: "https://hexdocs.pm/jellyfish/changelog.html",
-        GitHub: "https://github.com/thiagoesteves/jellyfish"
+        GitHub: "https://github.com/deployex/jellyfish"
       }
     ]
   end

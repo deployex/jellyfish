@@ -89,7 +89,7 @@ EDIT_APPUP=true MIX_ENV=prod mix release
 
 # Relup file
 
-The library focuses on generating appup files and includes them in the mix release package. It doesn't create relup files directly. The relup file is typically created during a hot upgrade with the [DeployEx](https://github.com/thiagoesteves/deployex) application.
+The library focuses on generating appup files and includes them in the mix release package. It doesn't create relup files directly. The relup file is typically created during a hot upgrade with the [DeployEx](https://github.com/deployex/deployex) application.
 
 # Elixir Umbrella applications
 
@@ -247,7 +247,7 @@ MIX_ENV=prod mix release
 ## Examples
 Explore these resources for practical examples of using Jellyfish with Elixir applications:
 
- * [Deployex](https://github.com/thiagoesteves/deployex) - Elixir application showcasing Jellyfish's capabilities in deployment with hot-upgrades.
+ * [Deployex](https://github.com/deployex/deployex) - Elixir application showcasing Jellyfish's capabilities in deployment with hot-upgrades.
  * [Calori](https://github.com/thiagoesteves/calori) - Elixir application using Jellyfish and being able to hot upgrade via DeployEx
  * [Myumbrella](https://github.com/thiagoesteves/myumbrella) - Elixir umbrella application configured for using Jellyfish.
 
@@ -255,14 +255,6 @@ Explore these resources for practical examples of using Jellyfish with Elixir ap
 
 🗨️ **Contact us:**
 Feel free to contact me on [Linkedin](https://www.linkedin.com/in/thiago-cesar-calori-esteves-972368115/).
-
-## ☕ Support the project
-
-Jellyfish is free and open source. If it's useful to you, consider supporting its development:
-
- * **GitHub Sponsors:** [github.com/sponsors/thiagoesteves](https://github.com/sponsors/thiagoesteves)
- * **BTC Wallet Address:** `bc1q3f5eyg2qlun6dc4l597yuyygmkh2qvklwecw8r`
- * **ETH Wallet Address:** `0x151C3A7AE305b3fF385c7EEce72C6c4E23dE05Fa`
 
 ## Copyright and License
 
