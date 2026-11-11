@@ -3,23 +3,32 @@ name: Jellyfish CI
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 
 env:
   MIX_ENV: test
   SHELL: /usr/bin/bash
 
 jobs:
-  setup:
-    name: Setup
+  test:
+    name: Test (OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }})
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include: &elixir_otp_versions
+          - otp: 28
+            elixir: 1.19.7
+          - otp: 29
+            elixir: 1.20.5
     steps:
       - uses: actions/checkout@v7
 
       - name: Setup BEAM
         uses: erlef/setup-beam@v1
         with:
-          otp-version: 28
-          elixir-version: 1.19.1
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
 
       - name: Cache
         uses: actions/cache@v6
@@ -28,54 +37,30 @@ jobs:
             _build
             deps
           key: |
-            jellyfish-${{ hashFiles('mix.lock') }}-2025-12-17
+            jellyfish-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('mix.lock') }}-2026-11-11
           restore-keys: |
-            jellyfish-
+            jellyfish-${{ matrix.otp }}-${{ matrix.elixir }}-
 
       - name: Install Elixir dependencies
         run: mix do deps.get + compile --warnings-as-errors
-
-  test:
-    name: Test
-    needs: setup
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup BEAM
-        uses: erlef/setup-beam@v1
-        with:
-          otp-version: 28
-          elixir-version: 1.19.1
-
-      - name: Cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            _build
-            deps
-          key: |
-            jellyfish-${{ hashFiles('mix.lock') }}-2025-12-17
-          restore-keys: |
-            jellyfish-
 
       - name: Run tests
         run: mix test --cover
 
   analysis:
-    name: Static Analysis
-    needs: setup
+    name: Static Analysis (OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }})
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include: *elixir_otp_versions
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
       - name: Setup BEAM
         uses: erlef/setup-beam@v1
         with:
-          otp-version: 28
-          elixir-version: 1.19.1
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
 
       - name: Cache
         uses: actions/cache@v6
@@ -84,9 +69,9 @@ jobs:
             _build
             deps
           key: |
-            jellyfish-${{ hashFiles('mix.lock') }}-2025-12-17
+            jellyfish-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('mix.lock') }}-2026-11-11
           restore-keys: |
-            jellyfish-
+            jellyfish-${{ matrix.otp }}-${{ matrix.elixir }}-
 
       - name: Install Elixir dependencies
         run: mix do deps.get + compile --warnings-as-errors
@@ -96,6 +81,9 @@ jobs:
 
       - name: Mix Audit
         run: mix deps.audit
+
+      - name: Credo
+        run: mix credo --strict
 
       - name: Ex Doc
         run: mix docs --failed
