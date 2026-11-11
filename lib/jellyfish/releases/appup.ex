@@ -65,61 +65,33 @@ defmodule Jellyfish.Releases.Appup do
   """
   @spec make(app, version_str, version_str, path_str, path_str) :: {:ok, appup} | {:error, term}
   def make(application, v1, v2, v1_path, v2_path) do
-    v1_dotapp =
-      v1_path
-      |> Path.join("/ebin/")
-      |> Path.join(Atom.to_string(application) <> ".app")
-      |> String.to_charlist()
-
-    v2_dotapp =
-      v2_path
-      |> Path.join("/ebin/")
-      |> Path.join(Atom.to_string(application) <> ".app")
-      |> String.to_charlist()
-
-    case :file.consult(v1_dotapp) do
-      {:ok, [{:application, ^application, v1_props}]} ->
-        consulted_v1_vsn = vsn(v1_props)
-
-        case consulted_v1_vsn === v1 do
-          true ->
-            case :file.consult(v2_dotapp) do
-              {:ok, [{:application, ^application, v2_props}]} ->
-                consulted_v2_vsn = vsn(v2_props)
-
-                case consulted_v2_vsn === v2 do
-                  true ->
-                    {:ok,
-                     make_appup(
-                       application,
-                       v1,
-                       v1_path,
-                       v1_props,
-                       v2,
-                       v2_path,
-                       v2_props
-                     )}
-
-                  false ->
-                    {:error,
-                     {:appups,
-                      {:mismatched_versions,
-                       [version: :next, expected: v2, got: consulted_v2_vsn]}}}
-                end
-
-              {:error, reason} ->
-                {:error, {:appups, :file, {:invalid_dotapp, reason}}}
-            end
-
-          false ->
-            {:error,
-             {:appups,
-              {:mismatched_versions, [version: :previous, expected: v1, got: consulted_v1_vsn]}}}
-        end
-
-      {:error, reason} ->
-        {:error, {:appups, :file, {:invalid_dotapp, reason}}}
+    with {:ok, v1_props} <- consult_dotapp(application, v1_path),
+         :ok <- check_vsn(:previous, vsn(v1_props), v1),
+         {:ok, v2_props} <- consult_dotapp(application, v2_path),
+         :ok <- check_vsn(:next, vsn(v2_props), v2) do
+      {:ok, make_appup(application, v1, v1_path, v1_props, v2, v2_path, v2_props)}
     end
+  end
+
+  defp consult_dotapp(application, path) do
+    dotapp =
+      path
+      |> Path.join("/ebin/")
+      |> Path.join(Atom.to_string(application) <> ".app")
+      |> String.to_charlist()
+
+    case :file.consult(dotapp) do
+      {:ok, [{:application, ^application, props}]} -> {:ok, props}
+      {:error, reason} -> {:error, {:appups, :file, {:invalid_dotapp, reason}}}
+    end
+  end
+
+  defp check_vsn(_which, vsn, vsn), do: :ok
+
+  defp check_vsn(which, consulted_vsn, expected_vsn) do
+    {:error,
+     {:appups,
+      {:mismatched_versions, [version: which, expected: expected_vsn, got: consulted_vsn]}}}
   end
 
   defp make_appup(_app, v1, v1_path, _v1_props, v2, v2_path, _v2_props) do
@@ -288,34 +260,36 @@ defmodule Jellyfish.Releases.Appup do
   end
 
   defp do_sort_instructions(mods, am, bm, ad, bd) do
-    ad =
-      Enum.filter(ad, fn
-        ^am -> false
-        d -> d in mods
-      end)
+    ad = filter_known_deps(ad, am, mods)
+    bd = filter_known_deps(bd, bm, mods)
 
-    bd =
-      Enum.filter(bd, fn
-        ^bm -> false
-        d -> d in mods
-      end)
+    compare_dependency_counts(am, bm, ad, bd)
+  end
 
+  defp filter_known_deps(deps, self_mod, mods) do
+    Enum.filter(deps, fn
+      ^self_mod -> false
+      d -> d in mods
+    end)
+  end
+
+  defp compare_dependency_counts(am, bm, ad, bd) do
     lad = length(ad)
     lbd = length(bd)
 
     cond do
-      lad == 0 and lbd != 0 ->
+      only_a_has_deps?(lad, lbd) ->
         true
 
-      lad != 0 and lbd == 0 ->
+      only_b_has_deps?(lad, lbd) ->
         false
 
       # If a depends on b and b doesn't depend on a
       # Then b comes first, and vice versa
-      am in bd and bm not in ad ->
+      a_depends_on_b_only?(am, bm, ad, bd) ->
         true
 
-      am not in bd and bm in ad ->
+      b_depends_on_a_only?(am, bm, ad, bd) ->
         false
 
       # If either they don't depend on each other,
@@ -332,6 +306,16 @@ defmodule Jellyfish.Releases.Appup do
         true
     end
   end
+
+  defp only_a_has_deps?(0, lbd), do: lbd != 0
+  defp only_a_has_deps?(_lad, _lbd), do: false
+
+  defp only_b_has_deps?(lad, 0), do: lad != 0
+  defp only_b_has_deps?(_lad, _lbd), do: false
+
+  defp a_depends_on_b_only?(am, bm, ad, bd), do: am in bd and bm not in ad
+
+  defp b_depends_on_a_only?(am, bm, ad, bd), do: am not in bd and bm in ad
 
   defp extract_deps({:update, _m, deps}) when is_list(deps), do: deps
   defp extract_deps({:update, _m, _change}), do: []

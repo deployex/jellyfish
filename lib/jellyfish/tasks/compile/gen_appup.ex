@@ -133,95 +133,96 @@ defmodule Mix.Tasks.Compile.GenAppup do
          type: type,
          upgrade_from: upgrade_from
        }) do
-    # Does app exist?
-    case Application.load(app) do
-      :ok ->
-        :ok
+    ensure_app_loaded!(app)
 
-      {:error, {:already_loaded, _}} ->
-        :ok
-
-      {:error, _} ->
-        System.halt(1)
-    end
-
-    v2 =
-      app
-      |> Application.spec()
-      |> Keyword.get(:vsn)
-      |> List.to_string()
-
+    v2 = app_vsn(app)
     v2_path = Application.app_dir(app)
-
-    # Look for app versions in release directory
-    all_versions =
-      Path.join([output_dir, "lib", "#{app}-*"])
-      |> Path.wildcard()
-      |> Enum.map(fn appdir ->
-        {:ok, [{:application, ^app, meta}]} =
-          Path.join([appdir, "ebin", "#{app}.app"])
-          |> read_terms()
-
-        version =
-          meta
-          |> Keyword.fetch!(:vsn)
-          |> List.to_string()
-
-        {version, appdir}
-      end)
-      |> Map.new()
-
+    all_versions = discover_versions(app, output_dir)
     previous_version = Map.delete(all_versions, v2)
-
-    sorted_versions =
-      previous_version
-      |> Map.keys()
-      |> sort_versions()
 
     if map_size(previous_version) == 0 do
       # NOTE: No previous releases exist
       {:ok, %{versions: Map.keys(all_versions), current: v2, appup: false}}
     else
-      {v1, v1_path} =
-        case upgrade_from do
-          :latest ->
-            version = List.first(sorted_versions)
-            {version, Map.fetch!(previous_version, version)}
-
-          version ->
-            case Map.get(previous_version, version) do
-              nil ->
-                System.halt(1)
-
-              path ->
-                {version, path}
-            end
-        end
-
-      case Appup.make(app, v1, v2, v1_path, v2_path) do
-        {:error, _} = err ->
-          err
-
-        {:ok, appup} ->
-          dir_path = Path.join(["rel", "appups", "#{app}"])
-
-          deployex_file =
-            """
-            {
-              "name": "#{app}",
-              "type": "#{type}",
-              "from": "#{v1}",
-              "to": "#{v2}"
-            }
-            """
-
-          File.mkdir_p!(dir_path)
-          :ok = write_term("#{dir_path}/#{v1}_to_#{v2}.appup", appup)
-          File.write!("#{dir_path}/jellyfish.json", deployex_file)
-
-          {:ok, %{versions: Map.keys(all_versions), current: v2, appup: true}}
-      end
+      {v1, v1_path} = resolve_upgrade_source(upgrade_from, previous_version)
+      build_appup(app, type, v1, v1_path, v2, v2_path, Map.keys(all_versions))
     end
+  end
+
+  # Does app exist?
+  defp ensure_app_loaded!(app) do
+    case Application.load(app) do
+      :ok -> :ok
+      {:error, {:already_loaded, _}} -> :ok
+      {:error, _} -> System.halt(1)
+    end
+  end
+
+  defp app_vsn(app) do
+    app
+    |> Application.spec()
+    |> Keyword.get(:vsn)
+    |> List.to_string()
+  end
+
+  # Look for app versions in release directory
+  defp discover_versions(app, output_dir) do
+    Path.join([output_dir, "lib", "#{app}-*"])
+    |> Path.wildcard()
+    |> Enum.map(fn appdir ->
+      {:ok, [{:application, ^app, meta}]} =
+        Path.join([appdir, "ebin", "#{app}.app"])
+        |> read_terms()
+
+      version =
+        meta
+        |> Keyword.fetch!(:vsn)
+        |> List.to_string()
+
+      {version, appdir}
+    end)
+    |> Map.new()
+  end
+
+  defp resolve_upgrade_source(:latest, previous_version) do
+    version = previous_version |> Map.keys() |> sort_versions() |> List.first()
+    {version, Map.fetch!(previous_version, version)}
+  end
+
+  defp resolve_upgrade_source(version, previous_version) do
+    case Map.get(previous_version, version) do
+      nil -> System.halt(1)
+      path -> {version, path}
+    end
+  end
+
+  defp build_appup(app, type, v1, v1_path, v2, v2_path, all_versions) do
+    case Appup.make(app, v1, v2, v1_path, v2_path) do
+      {:error, _} = err ->
+        err
+
+      {:ok, appup} ->
+        write_appup_files!(app, type, v1, v2, appup)
+        {:ok, %{versions: all_versions, current: v2, appup: true}}
+    end
+  end
+
+  defp write_appup_files!(app, type, v1, v2, appup) do
+    dir_path = Path.join(["rel", "appups", "#{app}"])
+
+    jellyfish_file =
+      """
+      {
+        "name": "#{app}",
+        "type": "#{type}",
+        "from": "#{v1}",
+        "to": "#{v2}"
+      }
+      """
+
+    File.mkdir_p!(dir_path)
+    :ok = write_term("#{dir_path}/#{v1}_to_#{v2}.appup", appup)
+    File.write!("#{dir_path}/jellyfish.json", jellyfish_file)
   end
 
   defp read_terms(path) when is_binary(path) do
