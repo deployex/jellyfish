@@ -95,8 +95,7 @@ defmodule Jellyfish.MixProject do
       ],
       "test.ci": [
         "format --check-formatted",
-        "deps.unlock --check-unused",
-        "credo --strict"
+        "deps.unlock --check-unused"
       ]
     ]
   end

@@ -11,12 +11,12 @@ env:
   SHELL: /usr/bin/bash
 
 jobs:
-  setup:
-    name: Setup (OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }})
+  test:
+    name: Test (OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }})
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        include:
+        include: &elixir_otp_versions
           - otp: 28
             elixir: 1.19.7
           - otp: 29
@@ -44,55 +44,17 @@ jobs:
       - name: Install Elixir dependencies
         run: mix do deps.get + compile --warnings-as-errors
 
-  test:
-    name: Test (OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }})
-    needs: setup
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          - otp: 28
-            elixir: 1.19.7
-          - otp: 29
-            elixir: 1.20.5
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup BEAM
-        uses: erlef/setup-beam@v1
-        with:
-          otp-version: ${{ matrix.otp }}
-          elixir-version: ${{ matrix.elixir }}
-
-      - name: Cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            _build
-            deps
-          key: |
-            jellyfish-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('mix.lock') }}-2026-11-11
-          restore-keys: |
-            jellyfish-${{ matrix.otp }}-${{ matrix.elixir }}-
-
       - name: Run tests
         run: mix test --cover
 
   analysis:
     name: Static Analysis (OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }})
-    needs: setup
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        include:
-          - otp: 28
-            elixir: 1.19.7
-          - otp: 29
-            elixir: 1.20.5
+        include: *elixir_otp_versions
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
       - name: Setup BEAM
         uses: erlef/setup-beam@v1
