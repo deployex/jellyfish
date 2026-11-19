@@ -28,6 +28,10 @@ defmodule Mix.Tasks.Compile.GenAppup do
   @pad_versions_size 40
   @pad_current_version_size 20
 
+  # Bump whenever the jellyfish.json field set changes in a way a reader
+  # (e.g. DeployEx) would need to branch on.
+  @jellyfish_json_format_version 1
+
   ### ==========================================================================
   ### Callback function implementation
   ### ==========================================================================
@@ -216,13 +220,21 @@ defmodule Mix.Tasks.Compile.GenAppup do
         "name": "#{app}",
         "type": "#{type}",
         "from": "#{v1}",
-        "to": "#{v2}"
+        "to": "#{v2}",
+        "format_version": #{@jellyfish_json_format_version},
+        "generator": "jellyfish/#{jellyfish_version()}"
       }
       """
 
     File.mkdir_p!(dir_path)
     :ok = write_term("#{dir_path}/#{v1}_to_#{v2}.appup", appup)
     File.write!("#{dir_path}/jellyfish.json", jellyfish_file)
+  end
+
+  defp jellyfish_version do
+    :jellyfish
+    |> Application.spec(:vsn)
+    |> List.to_string()
   end
 
   defp read_terms(path) when is_binary(path) do
