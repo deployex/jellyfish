@@ -232,9 +232,8 @@ defmodule Mix.Tasks.Compile.GenAppup do
   end
 
   defp jellyfish_version do
-    :jellyfish
-    |> Application.spec(:vsn)
-    |> List.to_string()
+    ensure_app_loaded!(:jellyfish)
+    app_vsn(:jellyfish)
   end
 
   defp read_terms(path) when is_binary(path) do
