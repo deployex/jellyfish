@@ -70,6 +70,22 @@ defmodule Mix.Tasks.Compile.GenAppupTest do
     appup_dir = Path.join(["rel", "appups", "#{@app_name}"])
     assert File.exists?(Path.join(appup_dir, "#{previous_version}_to_#{version}.appup"))
     assert File.exists?(Path.join(appup_dir, "jellyfish.json"))
+
+    jellyfish_json =
+      appup_dir |> Path.join("jellyfish.json") |> File.read!() |> Jason.decode!()
+
+    app_name_str = to_string(@app_name)
+
+    assert %{
+             "name" => ^app_name_str,
+             "type" => "project",
+             "from" => ^previous_version,
+             "to" => ^version,
+             "format_version" => 1,
+             "generator" => generator
+           } = jellyfish_json
+
+    assert generator =~ ~r|^jellyfish/\d+\.\d+\.\d+|
   end
 
   @tag :capture_log

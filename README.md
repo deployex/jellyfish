@@ -92,6 +92,34 @@ EDIT_APPUP=true MIX_ENV=prod mix release
 
 The library focuses on generating appup files and includes them in the mix release package. It doesn't create relup files directly. The relup file is typically created during a hot upgrade with the [DeployEx](https://github.com/deployex/deployex) application.
 
+# The jellyfish.json file
+
+Alongside every `.appup` file, Jellyfish writes a `jellyfish.json` file into the same `ebin` directory.
+This is the signal a tool like DeployEx should check before trusting an `.appup` file, rather than the mere presence of the `.appup` itself.
+A dependency can legitimately ship its own `.appup` file for unrelated reasons, and treating that as a hot-upgrade instruction would be a mistake.
+`jellyfish.json` only exists when Jellyfish itself generated and validated the appup, so its presence next to the `.appup` is the actual contract.
+
+It contains:
+
+```json
+{
+  "name": "my_app",
+  "type": "project",
+  "from": "0.1.0",
+  "to": "0.1.1",
+  "format_version": 1,
+  "generator": "jellyfish/0.2.7"
+}
+```
+
+ * `name`: the OTP application the appup belongs to.
+ * `type`: `project` for the release's own application, `dependency` for one of its production dependencies.
+ * `from` / `to`: the versions the appup upgrades between.
+ * `format_version`: the schema version of this file. Bumped whenever a field is added, renamed, or removed. Readers (such as DeployEx) should branch on this rather than assuming the current shape.
+ * `generator`: which tool and version produced the file, for provenance/debugging.
+
+This is a stable, tool-agnostic contract: any generator that produces an appup the same way, including [rebar3_jellyfish_plugin](https://github.com/deployex/rebar3_jellyfish_plugin) for Erlang/rebar3 releases, writes the same file shape so a reader never has to know whether a release came from `mix` or `rebar3`.
+
 # Elixir Umbrella applications
 
 The next sections describe how to set up and use Jellyfish with Elixir umbrella applications for hot code upgrades.
