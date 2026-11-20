@@ -1,18 +1,18 @@
 # CHANGELOG (v0.2.x)
 
-## 0.2.7 🚀 (2026-11-13)
+## 0.2.8 🚀 (2026-11-20)
 
-### Backwards incompatible changes for 0.2.6
+### Backwards incompatible changes for 0.2.7
  * None
 
 ### Bug fixes
  * None
 
 ### Enhancements
- * [`PULL-17`](https://github.com/deployex/jellyfish/pull/17) Added Dependabot for `mix` and `github-actions` updates, and updated outdated dependencies
- * [`PULL-18`](https://github.com/deployex/jellyfish/pull/18) Added Credo static analysis, a security policy, a CI matrix covering the latest 2 Elixir/OTP release lines, and raised test coverage
+ * [`PULL-20`](https://github.com/deployex/jellyfish/pull/20) Added `format_version` and `generator` fields to `jellyfish.json`, and documented it in the README as a stable, tool-agnostic contract
 
 # 🚀 Previous Releases
+ * [0.2.7 🚀 (2026-11-13)](https://github.com/deployex/jellyfish/blob/v0.2.7/CHANGELOG.md)
  * [0.2.6 🚀 (2026-10-30)](https://github.com/deployex/jellyfish/blob/v0.2.6/CHANGELOG.md)
  * [0.2.5 🚀 (2026-07-27)](https://github.com/deployex/jellyfish/blob/v0.2.5/CHANGELOG.md)
  * [0.2.4 🚀 (2025-12-18)](https://github.com/deployex/jellyfish/blob/v0.2.4/CHANGELOG.md)
