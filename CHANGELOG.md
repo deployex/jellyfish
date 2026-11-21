@@ -1,17 +1,18 @@
 # CHANGELOG (v0.2.x)
 
-## 0.2.8 🚀 (2026-11-20)
+## 0.2.9 🚀 (2026-11-21)
 
-### Backwards incompatible changes for 0.2.7
+### Backwards incompatible changes for 0.2.8
  * None
 
 ### Bug fixes
- * None
+ * [`PULL-22`](https://github.com/deployex/jellyfish/pull/22) Check the new version's exports for the code_change decision
 
 ### Enhancements
- * [`PULL-20`](https://github.com/deployex/jellyfish/pull/20) Added `format_version` and `generator` fields to `jellyfish.json`, and documented it in the README as a stable, tool-agnostic contract
+ * None
 
 # 🚀 Previous Releases
+ * [0.2.8 🚀 (2026-11-20)](https://github.com/deployex/jellyfish/blob/v0.2.8/CHANGELOG.md)
  * [0.2.7 🚀 (2026-11-13)](https://github.com/deployex/jellyfish/blob/v0.2.7/CHANGELOG.md)
  * [0.2.6 🚀 (2026-10-30)](https://github.com/deployex/jellyfish/blob/v0.2.6/CHANGELOG.md)
  * [0.2.5 🚀 (2026-07-27)](https://github.com/deployex/jellyfish/blob/v0.2.5/CHANGELOG.md)
