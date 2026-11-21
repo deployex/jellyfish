@@ -31,6 +31,13 @@ When upgrading processes, order matters:
  * Upgrade dependencies first, then dependents (e.g., if `proc_a` depends on `proc_b`, upgrade `proc_b` first)
  * Jellyfish automatically performs topological sorting when generating appups
 
+### Purge semantics
+
+Jellyfish emits `update`/`load_module` instructions without an explicit purge mode, so OTP's release handler falls back to `brutal_purge` for both the pre-purge and post-purge steps.
+With `brutal_purge`, any process still executing old code when the purge runs is killed outright, rather than being given a chance to finish.
+This is the same default every appup-generation tool in this family uses, and matches what `systools:make_relup` itself defaults to when no purge mode is given.
+If a specific module needs the safer `soft_purge` behavior (the purge is deferred, and `release_handler:install_release/1` returns `{error, {old_processes, Mod}}` instead of killing anything), edit the generated `.appup` by hand, or use the `EDIT_APPUP` flow described below, before packaging the release.
+
 References:
 
  * [Distillery](https://github.com/bitwalker/distillery)
