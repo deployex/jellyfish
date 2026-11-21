@@ -160,7 +160,17 @@ defmodule Jellyfish.Releases.Appup do
   defp generate_instruction(:changed, {v1_file, v2_file}) do
     module_name = module_name(v1_file)
     attributes = beam_attributes(v1_file)
-    exports = beam_exports(v1_file)
+    # Whether code_change/3 (or system_code_change/4) is exported must be
+    # checked on the NEW (v2) beam, not the old one. Per OTP's release
+    # handler (systools_rc.erl), code_change always runs against whichever
+    # module version v2 is: on upgrade it runs after the new code is loaded,
+    # and on downgrade it runs before the old code is loaded back, so in
+    # both directions it is v2's code_change/3 clause that actually fires.
+    # A module that only gains code_change/3 in v2 (the common case: you add
+    # it specifically to migrate a changed state shape) must still get the
+    # `:advanced` update instruction, or that migration code never runs and
+    # processes keep executing against the new module with old-shape state.
+    exports = beam_exports(v2_file)
     imports = beam_imports(v2_file)
     is_supervisor = supervisor?(attributes)
     is_special_proc = special_process?(exports)

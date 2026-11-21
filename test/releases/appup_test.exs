@@ -8,6 +8,9 @@ defmodule Distillery.Test.AppupTest do
   @v2_path Path.join([@fixtures_path, "appup_beams", "test-0.2.0"])
   @v3_path Path.join([@fixtures_path, "appup_beams", "test-0.3.0"])
 
+  @special_v1_path Path.join([@fixtures_path, "appup_beams", "special_proc-1.0.0"])
+  @special_v2_path Path.join([@fixtures_path, "appup_beams", "special_proc-1.1.0"])
+
   test "v1 -> v2" do
     # Add ServerB and ServerC gen_servers, update Server to reference ServerB,
     # and ServerB will reference ServerC
@@ -60,6 +63,22 @@ defmodule Distillery.Test.AppupTest do
         ]}}
 
     assert ^expected = Appup.make(:test, "0.2.0", "0.3.0", @v2_path, @v3_path)
+  end
+
+  test "uses an advanced update when code_change/3 is only exported by the new version" do
+    # SpecialProc.Worker is a hand-rolled :gen_server callback module (no
+    # `use GenServer` default). In 1.0.0 it exports no code_change/3. In
+    # 1.1.0 it changes its state shape and adds code_change/3 to migrate
+    # any process still holding the old-shape state. This is the ordinary
+    # reason a module gains code_change/3 only in the new version, and the
+    # appup must still issue an `:advanced` update so that migration code
+    # actually runs, instead of a plain `:load_module` that would leave
+    # existing processes running against old-shape state.
+    assert {:ok, {~c"1.1.0", [{~c"1.0.0", up}], [{~c"1.0.0", down}]}} =
+             Appup.make(:special_proc, "1.0.0", "1.1.0", @special_v1_path, @special_v2_path)
+
+    assert up == [{:update, SpecialProc.Worker, {:advanced, []}, []}]
+    assert down == [{:update, SpecialProc.Worker, {:advanced, []}, []}]
   end
 
   test "returns an error when the declared previous version doesn't match the .app file" do
