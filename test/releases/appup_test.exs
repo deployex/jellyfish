@@ -128,8 +128,8 @@ defmodule Distillery.Test.AppupTest do
     build_compiled_fixture(
       :soft_proc,
       :soft_proc_worker,
-      "-module(soft_proc_worker).\\n-behaviour(gen_server).\\n-export([init/1, handle_call/3]).\\ninit(_Args) -> {ok, v1}.\\nhandle_call(_Req, _From, State) -> {reply, ok, State}.\\n",
-      "-module(soft_proc_worker).\\n-behaviour(gen_server).\\n-export([init/1, handle_call/3]).\\ninit(_Args) -> {ok, v2}.\\nhandle_call(_Req, _From, State) -> {reply, ok, State}.\\n"
+      "-module(soft_proc_worker).\n-behaviour(gen_server).\n-export([init/1, handle_call/3]).\ninit(_Args) -> {ok, v1}.\nhandle_call(_Req, _From, State) -> {reply, ok, State}.\n",
+      "-module(soft_proc_worker).\n-behaviour(gen_server).\n-export([init/1, handle_call/3]).\ninit(_Args) -> {ok, v2}.\nhandle_call(_Req, _From, State) -> {reply, ok, State}.\n"
     )
   end
 
@@ -137,8 +137,8 @@ defmodule Distillery.Test.AppupTest do
     build_compiled_fixture(
       :plain_proc,
       :plain_worker,
-      "-module(plain_worker).\\n-export([value/0]).\\nvalue() -> v1.\\n",
-      "-module(plain_worker).\\n-export([value/0]).\\nvalue() -> v2.\\n"
+      "-module(plain_worker).\n-export([value/0]).\nvalue() -> v1.\n",
+      "-module(plain_worker).\n-export([value/0]).\nvalue() -> v2.\n"
     )
   end
 
@@ -161,7 +161,7 @@ defmodule Distillery.Test.AppupTest do
       ])
 
       app_file = Path.join(ebin, Atom.to_string(app) <> ".app")
-      File.write!(app_file, "{application, #{app}, [{vsn, \\\"#{version}\\\"}, {modules, [#{module}]}, {applications, [kernel, stdlib]}]}.\\n")
+      File.write!(app_file, "{application, #{app}, [{vsn, \"#{version}\"}, {modules, [#{module}]}, {applications, [kernel, stdlib]}]}.\n")
     end
 
     {v1_path, v2_path}
