@@ -81,6 +81,26 @@ defmodule Distillery.Test.AppupTest do
     assert down == [{:update, SpecialProc.Worker, {:advanced, []}, []}]
   end
 
+  test "uses a soft update for OTP behaviour modules without code_change" do
+    {v1_path, v2_path} = build_gen_server_fixture()
+
+    assert {:ok, {~c"0.2.0", [{~c"0.1.0", up}], [{~c"0.1.0", down}]}} =
+             Appup.make(:soft_proc, "0.1.0", "0.2.0", v1_path, v2_path)
+
+    assert up == [{:update, :soft_proc_worker, :soft, []}]
+    assert down == [{:update, :soft_proc_worker, :soft, []}]
+  end
+
+  test "ordinary modules without code_change still use load_module" do
+    {v1_path, v2_path} = build_plain_module_fixture()
+
+    assert {:ok, {~c"0.2.0", [{~c"0.1.0", up}], [{~c"0.1.0", down}]}} =
+             Appup.make(:plain_proc, "0.1.0", "0.2.0", v1_path, v2_path)
+
+    assert up == [{:load_module, :plain_worker}]
+    assert down == [{:load_module, :plain_worker}]
+  end
+
   test "returns an error when the declared previous version doesn't match the .app file" do
     assert {:error,
             {:appups,
@@ -102,5 +122,48 @@ defmodule Distillery.Test.AppupTest do
   test "returns an error when the next version's .app file can't be read" do
     assert {:error, {:appups, :file, {:invalid_dotapp, _reason}}} =
              Appup.make(:test, "0.1.0", "0.2.0", @v1_path, "/nonexistent/path")
+  end
+
+  defp build_gen_server_fixture do
+    build_compiled_fixture(
+      :soft_proc,
+      :soft_proc_worker,
+      "-module(soft_proc_worker).\\n-behaviour(gen_server).\\n-export([init/1, handle_call/3]).\\ninit(_Args) -> {ok, v1}.\\nhandle_call(_Req, _From, State) -> {reply, ok, State}.\\n",
+      "-module(soft_proc_worker).\\n-behaviour(gen_server).\\n-export([init/1, handle_call/3]).\\ninit(_Args) -> {ok, v2}.\\nhandle_call(_Req, _From, State) -> {reply, ok, State}.\\n"
+    )
+  end
+
+  defp build_plain_module_fixture do
+    build_compiled_fixture(
+      :plain_proc,
+      :plain_worker,
+      "-module(plain_worker).\\n-export([value/0]).\\nvalue() -> v1.\\n",
+      "-module(plain_worker).\\n-export([value/0]).\\nvalue() -> v2.\\n"
+    )
+  end
+
+  defp build_compiled_fixture(app, module, v1_source, v2_source) do
+    root = Path.join(System.tmp_dir!(), "jellyfish-appup-#{System.unique_integer([:positive])}")
+    v1_path = Path.join(root, "v1")
+    v2_path = Path.join(root, "v2")
+
+    for {path, version, source} <- [
+          {v1_path, "0.1.0", v1_source},
+          {v2_path, "0.2.0", v2_source}
+        ] do
+      ebin = Path.join(path, "ebin")
+      File.mkdir_p!(ebin)
+      source_path = Path.join(root, Atom.to_string(module) <> "-#{version}.erl")
+      File.write!(source_path, source)
+      assert {:ok, ^module} = :compile.file(String.to_charlist(source_path), [
+        :debug_info,
+        {:outdir, String.to_charlist(ebin)}
+      ])
+
+      app_file = Path.join(ebin, Atom.to_string(app) <> ".app")
+      File.write!(app_file, "{application, #{app}, [{vsn, \\\"#{version}\\\"}, {modules, [#{module}]}, {applications, [kernel, stdlib]}]}.\\n")
+    end
+
+    {v1_path, v2_path}
   end
 end

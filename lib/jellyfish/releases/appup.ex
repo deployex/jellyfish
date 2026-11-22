@@ -174,13 +174,20 @@ defmodule Jellyfish.Releases.Appup do
     imports = beam_imports(v2_file)
     is_supervisor = supervisor?(attributes)
     is_special_proc = special_process?(exports)
+    is_otp_callback_proc = otp_callback_process?(attributes)
 
     depends_on =
       imports
       |> Enum.map(fn {m, _f, _a} -> m end)
       |> Enum.uniq()
 
-    generate_instruction_advanced(module_name, is_supervisor, is_special_proc, depends_on)
+    generate_instruction_advanced(
+      module_name,
+      is_supervisor,
+      is_special_proc,
+      is_otp_callback_proc,
+      depends_on
+    )
   end
 
   defp beam_attributes(file) do
@@ -203,24 +210,42 @@ defmodule Jellyfish.Releases.Appup do
       Keyword.get(exports, :code_change) == 4
   end
 
+  # These behaviours run as OTP-managed callback processes. Even without a
+  # state migration callback, they must be suspended and resumed around the
+  # code replacement; loading their module directly can purge code while a
+  # callback (for example, a blocking accept loop) is still executing it.
+  defp otp_callback_process?(attributes) do
+    behaviours = Keyword.get(attributes, :behavior, []) ++ Keyword.get(attributes, :behaviour, [])
+    Enum.any?([:gen_server, :gen_statem, :gen_fsm], &(&1 in behaviours))
+  end
+
   defp supervisor?(attributes) do
     behaviours = Keyword.get(attributes, :behavior, []) ++ Keyword.get(attributes, :behaviour, [])
     :supervisor in behaviours || Supervisor in behaviours
   end
 
   # supervisor
-  defp generate_instruction_advanced(m, true, _is_special, _dep_mods),
+  defp generate_instruction_advanced(m, true, _is_special, _is_otp_proc, _dep_mods),
     do: {:update, m, :supervisor}
 
   # special process (i.e. exports code_change/3 or system_code_change/4)
-  defp generate_instruction_advanced(m, _is_sup, true, []), do: {:update, m, {:advanced, []}}
+  defp generate_instruction_advanced(m, _is_sup, true, _is_otp_proc, []),
+    do: {:update, m, {:advanced, []}}
 
-  defp generate_instruction_advanced(m, _is_sup, true, dep_mods),
+  defp generate_instruction_advanced(m, _is_sup, true, _is_otp_proc, dep_mods),
     do: {:update, m, {:advanced, []}, dep_mods}
 
-  # non-special process (i.e. neither code_change/3 nor system_code_change/4 are exported)
-  defp generate_instruction_advanced(m, _is_sup, false, []), do: {:load_module, m}
-  defp generate_instruction_advanced(m, _is_sup, false, dep_mods), do: {:load_module, m, dep_mods}
+  # OTP callback process without a migration callback: synchronize the
+  # process with a soft update, but do not call code_change.
+  defp generate_instruction_advanced(m, _is_sup, false, true, []),
+    do: {:update, m, :soft, []}
+
+  defp generate_instruction_advanced(m, _is_sup, false, true, dep_mods),
+    do: {:update, m, :soft, dep_mods}
+
+  # Ordinary module (not an OTP callback process).
+  defp generate_instruction_advanced(m, _is_sup, false, false, []), do: {:load_module, m}
+  defp generate_instruction_advanced(m, _is_sup, false, false, dep_mods), do: {:load_module, m, dep_mods}
 
   # This "topological" sort is not truly topological, since module dependencies
   # are represented as a directed, cyclic graph, and it is not actually
