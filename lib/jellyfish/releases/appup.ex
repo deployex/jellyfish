@@ -245,7 +245,9 @@ defmodule Jellyfish.Releases.Appup do
 
   # Ordinary module (not an OTP callback process).
   defp generate_instruction_advanced(m, _is_sup, false, false, []), do: {:load_module, m}
-  defp generate_instruction_advanced(m, _is_sup, false, false, dep_mods), do: {:load_module, m, dep_mods}
+
+  defp generate_instruction_advanced(m, _is_sup, false, false, dep_mods),
+    do: {:load_module, m, dep_mods}
 
   # This "topological" sort is not truly topological, since module dependencies
   # are represented as a directed, cyclic graph, and it is not actually

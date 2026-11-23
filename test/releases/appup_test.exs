@@ -97,8 +97,10 @@ defmodule Distillery.Test.AppupTest do
     assert {:ok, {~c"0.2.0", [{~c"0.1.0", up}], [{~c"0.1.0", down}]}} =
              Appup.make(:plain_proc, "0.1.0", "0.2.0", v1_path, v2_path)
 
-    assert up == [{:load_module, :plain_worker}]
-    assert down == [{:load_module, :plain_worker}]
+    # Every compiled module imports from :erlang, so the instruction carries a
+    # dependency list, left empty because no module it depends on has changed.
+    assert up == [{:load_module, :plain_worker, []}]
+    assert down == [{:load_module, :plain_worker, []}]
   end
 
   test "returns an error when the declared previous version doesn't match the .app file" do
@@ -153,15 +155,22 @@ defmodule Distillery.Test.AppupTest do
         ] do
       ebin = Path.join(path, "ebin")
       File.mkdir_p!(ebin)
-      source_path = Path.join(root, Atom.to_string(module) <> "-#{version}.erl")
+      # The Erlang compiler rejects a source file that is not named after its module
+      source_path = Path.join(path, Atom.to_string(module) <> ".erl")
       File.write!(source_path, source)
-      assert {:ok, ^module} = :compile.file(String.to_charlist(source_path), [
-        :debug_info,
-        {:outdir, String.to_charlist(ebin)}
-      ])
+
+      assert {:ok, ^module} =
+               :compile.file(String.to_charlist(source_path), [
+                 :debug_info,
+                 {:outdir, String.to_charlist(ebin)}
+               ])
 
       app_file = Path.join(ebin, Atom.to_string(app) <> ".app")
-      File.write!(app_file, "{application, #{app}, [{vsn, \"#{version}\"}, {modules, [#{module}]}, {applications, [kernel, stdlib]}]}.\n")
+
+      File.write!(
+        app_file,
+        "{application, #{app}, [{vsn, \"#{version}\"}, {modules, [#{module}]}, {applications, [kernel, stdlib]}]}.\n"
+      )
     end
 
     {v1_path, v2_path}
