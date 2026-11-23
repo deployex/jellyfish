@@ -265,6 +265,12 @@ defmodule App1.MixProject do
 end
 ```
 
+## Dependencies
+
+Each child app is checked with its own dependencies, the ones it declares and the ones those bring in, so a library that no child app declares still gets its appup.
+A dependency that several child apps share is checked once, and its appup is written under the first child app that brings it in (for example `apps/app_1/rel/appups/<dependency>`).
+Dependencies declared only in the root `mix.exs` are not checked, declare a dependency in the child app that uses it.
+
 ## Generating Appup files
 
 When building releases for hot code upgrades in umbrella applications, modifying the version file does not trigger the compiler to detect changes in mix.exs across all apps. In this scenario, all apps need to be recompiled to make the new version available to the compiler's tasks, which would normally require forcing compilation.
