@@ -51,7 +51,12 @@ defmodule Mix.Tasks.Compile.GenAppup do
       output_dir: "#{build_path}/#{Mix.env()}/rel/#{release_name}/"
     }
 
-    dependencies = Helper.prod_dependencies(Mix.Project.config()[:deps])
+    dependencies =
+      Helper.prod_dependencies(
+        Mix.Project.config()[:deps],
+        Mix.Project.deps_tree(),
+        Keyword.get(args, :release_apps)
+      )
 
     with :ok <- trigger_gen_appup(app_name, opts) do
       trigger_deps_gen_appup(app_name, opts, dependencies)

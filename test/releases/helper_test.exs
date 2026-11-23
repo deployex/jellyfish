@@ -3,6 +3,80 @@ defmodule Jellyfish.Releases.HelperTest do
 
   alias Jellyfish.Releases.Helper
 
+  doctest Jellyfish.Releases.Helper
+
+  describe "prod_dependencies/3" do
+    test "adds the dependencies that a production dependency brings in" do
+      deps = [{:finch, "~> 0.20"}, {:jason, "~> 1.4"}]
+
+      tree = %{
+        finch: [:mint, :nimble_pool, :telemetry],
+        mint: [:hpax],
+        hpax: [],
+        nimble_pool: [],
+        telemetry: [],
+        jason: []
+      }
+
+      assert Helper.prod_dependencies(deps, tree) ==
+               [:finch, :jason, :mint, :nimble_pool, :telemetry, :hpax]
+    end
+
+    test "lists a dependency once when several dependencies bring it in" do
+      deps = [{:plug, "~> 1.14"}, {:finch, "~> 0.20"}]
+      tree = %{plug: [:telemetry, :mime], finch: [:telemetry], telemetry: [], mime: []}
+
+      assert Helper.prod_dependencies(deps, tree) == [:plug, :finch, :telemetry, :mime]
+    end
+
+    test "does not follow dependencies that are not production dependencies" do
+      deps = [{:plug, "~> 1.14"}, {:credo, "~> 1.7", only: [:dev, :test], runtime: false}]
+      tree = %{plug: [:mime], mime: [], credo: [:bunt, :file_system], bunt: [], file_system: []}
+
+      assert Helper.prod_dependencies(deps, tree) == [:plug, :mime]
+    end
+
+    test "leaves out a transitive dependency that the project declares as not for production" do
+      deps = [{:finch, "~> 0.20"}, {:castore, "~> 1.0", runtime: false}]
+      tree = %{finch: [:mint, :castore], mint: [:castore], castore: []}
+
+      assert Helper.prod_dependencies(deps, tree) == [:finch, :mint]
+    end
+
+    test "leaves out a dependency that is not in the tree" do
+      deps = [{:mint, "~> 1.7"}]
+      tree = %{mint: [:hpax, :castore], hpax: []}
+
+      assert Helper.prod_dependencies(deps, tree) == [:mint, :hpax]
+    end
+
+    test "keeps only the transitive dependencies that the release ships" do
+      deps = [{:finch, "~> 0.20"}]
+      tree = %{finch: [:mint, :nimble_pool], mint: [:hpax], hpax: [], nimble_pool: []}
+
+      assert Helper.prod_dependencies(deps, tree, [:finch, :nimble_pool, :kernel]) ==
+               [:finch, :nimble_pool]
+    end
+
+    test "keeps a declared dependency even when the release applications omit it" do
+      deps = [{:finch, "~> 0.20"}]
+      tree = %{finch: [:mint], mint: []}
+
+      assert Helper.prod_dependencies(deps, tree, []) == [:finch]
+    end
+
+    test "stops on a dependency cycle" do
+      deps = [{:a, "~> 1.0"}]
+      tree = %{a: [:b], b: [:c], c: [:a, :b]}
+
+      assert Helper.prod_dependencies(deps, tree) == [:a, :b, :c]
+    end
+
+    test "returns the declared dependencies when the tree is empty" do
+      assert Helper.prod_dependencies([{:plug, "~> 1.14"}], %{}) == [:plug]
+    end
+  end
+
   describe "prod_dependencies/1" do
     test "includes simple dependencies with version string" do
       deps = [
