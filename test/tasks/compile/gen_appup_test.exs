@@ -8,6 +8,17 @@ defmodule Mix.Tasks.Compile.GenAppupTest.FixtureProject do
   def project, do: Jellyfish.MixProject.project() |> Keyword.put(:deps, [{:fakeapp, ">= 0.0.0"}])
 end
 
+defmodule Mix.Tasks.Compile.GenAppupTest.TransitiveFixtureProject do
+  @moduledoc false
+
+  # Declares one of this project's own dependencies as a production
+  # dependency. mix_audit brings in jason and yaml_elixir, and yaml_elixir
+  # brings in yamerl, none of which the fixture declares.
+  def project do
+    Jellyfish.MixProject.project() |> Keyword.put(:deps, [{:mix_audit, "~> 2.1"}])
+  end
+end
+
 defmodule Mix.Tasks.Compile.GenAppupTest do
   use ExUnit.Case, async: false
 
@@ -127,6 +138,56 @@ defmodule Mix.Tasks.Compile.GenAppupTest do
     on_exit(fn -> Mix.Project.pop() end)
 
     assert :ok = GenAppup.run(release_name: @app_name)
+  end
+
+  describe "transitive dependencies" do
+    setup do
+      shell = Mix.shell()
+      Mix.shell(Mix.Shell.Process)
+
+      # Mix resolves the dependencies of a nested project from the project
+      # below it, so the fixture has to replace this project, not sit on top.
+      %{name: name, file: file} = Mix.Project.pop()
+      Mix.Project.push(Mix.Tasks.Compile.GenAppupTest.TransitiveFixtureProject, file)
+
+      on_exit(fn ->
+        Mix.Project.pop()
+        Mix.Project.push(name, file)
+        Mix.shell(shell)
+      end)
+
+      :ok
+    end
+
+    @tag :capture_log
+    test "checks the dependencies that a declared production dependency brings in" do
+      assert :ok = GenAppup.run(release_name: @app_name)
+
+      for app <- ["mix_audit", "jason", "yaml_elixir", "yamerl"] do
+        assert processed?(app), "expected #{app} to be checked for appups"
+      end
+    end
+
+    @tag :capture_log
+    test "skips the transitive dependencies that the release does not ship" do
+      assert :ok =
+               GenAppup.run(release_name: @app_name, release_apps: [:mix_audit, :yaml_elixir])
+
+      assert processed?("mix_audit")
+      assert processed?("yaml_elixir")
+      refute processed?("jason")
+      refute processed?("yamerl")
+    end
+
+    # Each processed app is reported on the shell as "[app] versions: ..."
+    defp processed?(app) do
+      {:messages, messages} = Process.info(self(), :messages)
+
+      Enum.any?(messages, fn
+        {:mix_shell, :info, [message]} -> IO.chardata_to_string(message) =~ "[#{app}]"
+        _other -> false
+      end)
+    end
   end
 
   @tag :capture_log
