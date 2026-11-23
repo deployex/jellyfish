@@ -28,7 +28,12 @@ defmodule Mix.Tasks.Compile.CopyAppup do
     app_name = Mix.Project.config()[:app]
     release_path = Keyword.fetch!(args, :release_path)
 
-    dependencies = Helper.prod_dependencies(Mix.Project.config()[:deps])
+    dependencies =
+      Helper.prod_dependencies(
+        Mix.Project.config()[:deps],
+        Mix.Project.deps_tree(),
+        Keyword.get(args, :release_apps)
+      )
 
     with :ok <- trigger_copy(release_path, app_name, version) do
       trigger_deps_copy(release_path, dependencies)

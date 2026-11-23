@@ -15,7 +15,8 @@ defmodule Jellyfish do
       ]
 
   It runs the `compile.gen_appup` and `compile.copy_appup` Mix compiler tasks
-  for the release's app and its production dependencies, then copies the
+  for the release's app and its production dependencies, including the transitive
+  ones that the release ships, then copies the
   freshly assembled `.rel` file into the release's `releases/` directory.
   Returns the given `release` unchanged, as required by the `:steps` contract.
   """
@@ -28,8 +29,11 @@ defmodule Jellyfish do
       "Checking if previous versions are available"
     ])
 
-    Mix.Task.run("compile.gen_appup", release_name: name)
-    Mix.Task.run("compile.copy_appup", release_path: path)
+    # Transitive dependencies get an appup only when the release ships them
+    release_apps = for {app, _properties} <- release.applications, do: app
+
+    Mix.Task.run("compile.gen_appup", release_name: name, release_apps: release_apps)
+    Mix.Task.run("compile.copy_appup", release_path: path, release_apps: release_apps)
 
     rel_source = Path.join(vp, "#{name}.rel")
     rel_dest = Path.join([path, "releases", "#{name}-#{vsn}.rel"])

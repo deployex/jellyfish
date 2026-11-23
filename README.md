@@ -79,6 +79,11 @@ Once the `mix release` is called, if a previous version is found, the appup file
 
 Jellyfish generates appup files for both your application code and its dependencies. This allows you to upgrade third-party libraries at runtime alongside your own code changes.
 
+This covers the production dependencies declared in your `mix.exs` and the dependencies that they bring in, as long as the release ships them.
+For example, if you declare `finch` and an update moves `nimble_pool`, which `finch` depends on, `nimble_pool` gets its own appup without being declared.
+`systools:make_relup/4` needs an appup for every application whose version changes, so a release that moves a transitive dependency can still be hot-upgraded.
+A dependency that you declare with `runtime: false` or for `:dev`/`:test` only is skipped, even when another dependency brings it in.
+
 > [!WARNING]
 > Not all code changes are safe for hot-upgrades.
 > Before performing a hot-upgrade, check if the dependency supports hot-upgrades between versions, review the changelog for structural changes (e.g., process state modifications, API changes), and check stateful processes like GenServers, Agents, etc. that may require special handling.
