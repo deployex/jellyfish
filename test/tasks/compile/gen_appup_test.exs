@@ -175,6 +175,26 @@ defmodule Mix.Tasks.Compile.GenAppupTest do
         refute File.exists?(ctx.generated)
       end
     end
+
+    @tag :capture_log
+    test "says which versions the override has when they are not the expected ones", ctx do
+      # No downgrade, which the relup of a hot upgrade is also built with
+      write_override!(
+        @app_name,
+        "0.0.1_to_#{ctx.version}.appup",
+        ~s|{"#{ctx.version}", [{"0.0.1", []}], []}.\n|
+      )
+
+      assert {:error, [%Mix.Task.Compiler.Diagnostic{message: message}]} =
+               GenAppup.run(release_name: @app_name)
+
+      version = inspect(ctx.version)
+
+      assert message =~
+               ~s|expected: [to: #{version}, upgrade_from: ["0.0.1"], downgrade_to: ["0.0.1"]]|
+
+      assert message =~ ~s|got: [to: #{version}, upgrade_from: ["0.0.1"], downgrade_to: []]|
+    end
   end
 
   @tag :capture_log

@@ -81,11 +81,14 @@ defmodule Jellyfish.Releases.Override do
       {:ok, [{^to, [{^from, up}], [{^from, down}]}]} when is_list(up) and is_list(down) ->
         {:ok, path}
 
-      {:ok, [{other_to, [{other_from, _up}], _down}]} ->
+      # One upgrade and one downgrade, both for the version of its name, are what is expected
+      {:ok, [{other_to, up, down}]} when is_list(up) and is_list(down) ->
+        got = [to: version(other_to), upgrade_from: versions(up), downgrade_to: versions(down)]
+        expected = [to: v2, upgrade_from: [v1], downgrade_to: [v1]]
+
         {:error,
          {:appups,
-          {:invalid_override, path,
-           {:mismatched_versions, [expected: {v1, v2}, got: {other_from, other_to}]}}}}
+          {:invalid_override, path, {:mismatched_versions, [expected: expected, got: got]}}}}
 
       {:ok, _terms} ->
         {:error, {:appups, {:invalid_override, path, :not_an_appup}}}
@@ -94,4 +97,10 @@ defmodule Jellyfish.Releases.Override do
         {:error, {:appups, {:invalid_override, path, reason}}}
     end
   end
+
+  defp versions(entries), do: Enum.map(entries, &version/1)
+
+  defp version({version, _instructions}), do: version(version)
+  defp version(version) when is_list(version), do: List.to_string(version)
+  defp version(other), do: other
 end
