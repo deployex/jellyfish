@@ -1,17 +1,18 @@
 # CHANGELOG (v0.2.x)
 
-## 0.2.11 🚀 (2026-11-24)
+## 0.2.12 🚀 (2026-11-24)
 
-### Backwards incompatible changes for 0.2.10
+### Backwards incompatible changes for 0.2.11
  * None
 
 ### Bug fixes
- * [`PULL-28`](https://github.com/deployex/jellyfish/pull/28) Leave modules whose code did not change out of the appup
-
-### Enhancements
  * None
 
+### Enhancements
+ * [`PULL-30`](https://github.com/deployex/jellyfish/pull/30) Use an appup written by hand, kept in `rel/appup_overrides`, in place of the generated one
+
 # 🚀 Previous Releases
+ * [0.2.11 🚀 (2026-11-24)](https://github.com/deployex/jellyfish/blob/v0.2.11/CHANGELOG.md)
  * [0.2.10 🚀 (2026-11-24)](https://github.com/deployex/jellyfish/blob/v0.2.10/CHANGELOG.md)
  * [0.2.9 🚀 (2026-11-21)](https://github.com/deployex/jellyfish/blob/v0.2.9/CHANGELOG.md)
  * [0.2.8 🚀 (2026-11-20)](https://github.com/deployex/jellyfish/blob/v0.2.8/CHANGELOG.md)
