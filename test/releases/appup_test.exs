@@ -103,6 +103,64 @@ defmodule Distillery.Test.AppupTest do
     assert down == [{:load_module, :plain_worker, []}]
   end
 
+  describe "a module whose code did not change" do
+    setup do
+      root = Path.join(System.tmp_dir!(), "jellyfish-same-#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(root) end)
+
+      same = "-module(same_worker).\n-export([value/0]).\nvalue() -> same.\n"
+
+      v1 =
+        compile_app!(root, "v1", "0.1.0",
+          same_worker: same,
+          changed_worker: "-module(changed_worker).\n-export([value/0]).\nvalue() -> v1.\n"
+        )
+
+      v2 =
+        compile_app!(root, "v2", "0.2.0",
+          same_worker: same,
+          changed_worker: "-module(changed_worker).\n-export([value/0]).\nvalue() -> v2.\n"
+        )
+
+      %{v1: v1, v2: v2}
+    end
+
+    test "is left out when the previous version is a release, which strips its beams", ctx do
+      ctx.v1 |> Path.join("ebin/*.beam") |> Path.wildcard() |> Enum.each(&strip_as_release!/1)
+
+      same_v1 = String.to_charlist(Path.join(ctx.v1, "ebin/same_worker.beam"))
+      same_v2 = String.to_charlist(Path.join(ctx.v2, "ebin/same_worker.beam"))
+
+      # The files differ, which is all that beam_lib.cmp/2 can say about them
+      assert {:error, :beam_lib, _different_chunks} = :beam_lib.cmp(same_v1, same_v2)
+
+      assert {:ok, {~c"0.2.0", [{~c"0.1.0", up}], [{~c"0.1.0", down}]}} =
+               Appup.make(:same_app, "0.1.0", "0.2.0", ctx.v1, ctx.v2)
+
+      assert up == [{:load_module, :changed_worker, []}]
+      assert down == [{:load_module, :changed_worker, []}]
+    end
+
+    test "is left out when both versions keep their debug information", ctx do
+      assert {:ok, {~c"0.2.0", [{~c"0.1.0", up}], [{~c"0.1.0", _down}]}} =
+               Appup.make(:same_app, "0.1.0", "0.2.0", ctx.v1, ctx.v2)
+
+      assert up == [{:load_module, :changed_worker, []}]
+    end
+
+    test "gives an appup with no instructions when no module changed", ctx do
+      File.cp!(
+        Path.join(ctx.v1, "ebin/changed_worker.beam"),
+        Path.join(ctx.v2, "ebin/changed_worker.beam")
+      )
+
+      strip_as_release!(Path.join(ctx.v1, "ebin/changed_worker.beam"))
+
+      assert {:ok, {~c"0.2.0", [{~c"0.1.0", []}], [{~c"0.1.0", []}]}} =
+               Appup.make(:same_app, "0.1.0", "0.2.0", ctx.v1, ctx.v2)
+    end
+  end
+
   test "returns an error when the declared previous version doesn't match the .app file" do
     assert {:error,
             {:appups,
@@ -124,6 +182,40 @@ defmodule Distillery.Test.AppupTest do
   test "returns an error when the next version's .app file can't be read" do
     assert {:error, {:appups, :file, {:invalid_dotapp, _reason}}} =
              Appup.make(:test, "0.1.0", "0.2.0", @v1_path, "/nonexistent/path")
+  end
+
+  # What `mix release` does to every beam it ships, with its default `strip_beams: true`
+  defp strip_as_release!(beam) do
+    {:ok, stripped} = beam |> File.read!() |> Mix.Release.strip_beam()
+    File.write!(beam, stripped)
+  end
+
+  # Compiles each module from its own directory, as two builds of a project do, so the
+  # debug information of the two versions names different source files
+  defp compile_app!(root, dir, version, modules) do
+    path = Path.join(root, dir)
+    ebin = Path.join(path, "ebin")
+    File.mkdir_p!(ebin)
+
+    for {module, source} <- modules do
+      source_path = Path.join(path, Atom.to_string(module) <> ".erl")
+      File.write!(source_path, source)
+
+      assert {:ok, ^module} =
+               :compile.file(String.to_charlist(source_path), [
+                 :debug_info,
+                 {:outdir, String.to_charlist(ebin)}
+               ])
+    end
+
+    names = modules |> Keyword.keys() |> Enum.join(", ")
+
+    File.write!(
+      Path.join(ebin, "same_app.app"),
+      "{application, same_app, [{vsn, \"#{version}\"}, {modules, [#{names}]}, {applications, [kernel, stdlib]}]}.\n"
+    )
+
+    path
   end
 
   defp build_gen_server_fixture do
