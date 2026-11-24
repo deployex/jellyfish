@@ -106,14 +106,64 @@ An appup upgrades from one previous version, the highest one found in the releas
 
 # Appup file
 
-If for any reason you need to change the order of the modules or add new commands in the appup file, you have 2 options:
+Jellyfish writes an appup from what changed in the compiled modules.
+It cannot see what a release changes around them: a process that exists in one version and not in the other, a supervisor whose `init/1` cannot run twice, a different shape of the data that processes share.
+An upgrade like that needs other instructions, and there are three ways to give them.
 
- 1. Use the __EDIT_APPUP__ environment variable to indicate to Jellifish that you want to edit the file before the release:
+## An override in the repository
+
+Write the appup by hand, and keep it where Jellyfish looks for one:
+
+```
+rel/appup_overrides/<application>/<from>_to_<to>.appup
+```
+
+When the release is built for exactly that upgrade of that application, the file is used as it is, comments included, and nothing is generated for it.
+
+```erlang
+%% rel/appup_overrides/finch/0.24.0_to_0.25.0.appup
+%%
+%% Finch 0.25 starts a process that 0.24 did not have, and its supervisor creates a named
+%% table when it starts, so it cannot be updated in place. Every instance is stopped
+%% through its supervisor, the code is loaded, and the instances are started again.
+{"0.25.0",
+ [{"0.24.0",
+   [{stop, ['Elixir.Finch']},
+    {load_module, 'Elixir.Finch'},
+    {load_module, 'Elixir.Finch.Pool.Manager'},
+    {start, ['Elixir.Finch']}]}],
+ [{"0.24.0",
+   [{stop, ['Elixir.Finch']},
+    {load_module, 'Elixir.Finch'},
+    {load_module, 'Elixir.Finch.Pool.Manager'},
+    {start, ['Elixir.Finch']}]}]}.
+```
+
+ * **It is reviewed as code is.** The file is committed, so the instructions and the reasons for them go through a pull request, and a pipeline builds the same release every time. Start from the appup Jellyfish generated, in `rel/appups/<application>/`.
+ * **It only applies to the upgrade its name says.** Any other pair of versions ignores it, so it can stay in the repository after it has served.
+ * **It works for a dependency as for your own application**, which is where it is needed most: the dependency is not yours to change.
+ * **A file that is not usable fails the build.** One that cannot be read, or that holds an appup for other versions than its name says, is an error, and not a silent return to the generated appup that the override was written to avoid.
+ * **In an umbrella project**, the directory is looked for in the child application that is being compiled, and then in the root of the umbrella.
+
+The build says which appups came from an override:
+
+```
+[finch]    versions: ["0.24.0", "0.25.0"]    current: 0.25.0    - appups: my_app/rel/appups/finch, from the override rel/appup_overrides/finch/0.24.0_to_0.25.0.appup
+```
+
+## Editing during the build
+
+Set the __EDIT_APPUP__ environment variable, and Jellyfish waits for you to edit each generated file before it goes in the release:
+
 ```bash
 EDIT_APPUP=true MIX_ENV=prod mix release
 ```
 
- 2. Untar the release, do the changes in the appup files and tar it again.
+It suits a release built by hand. A pipeline cannot answer it, and the edit is not kept anywhere.
+
+## Editing the release
+
+Untar the release, change the appup files and tar it again.
 
 ## Known Limitations
 

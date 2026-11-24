@@ -9,6 +9,7 @@ defmodule Mix.Tasks.Compile.GenAppup do
   alias Jellyfish.Cache
   alias Jellyfish.Releases.Appup
   alias Jellyfish.Releases.Helper
+  alias Jellyfish.Releases.Override
 
   @recursive true
 
@@ -103,7 +104,7 @@ defmodule Mix.Tasks.Compile.GenAppup do
 
         :ok
 
-      {:ok, %{versions: versions, current: current, appup: true}} ->
+      {:ok, %{versions: versions, current: current, appup: true} = result} ->
         Cache.store_app_version(target_app, current)
 
         padded_versions =
@@ -113,7 +114,7 @@ defmodule Mix.Tasks.Compile.GenAppup do
 
         Mix.shell().info([
           :yellow,
-          "#{padded_name} #{padded_versions} #{padded_current} - appups: #{root_app_name}/rel/appups/#{target_app}"
+          "#{padded_name} #{padded_versions} #{padded_current} - appups: #{root_app_name}/rel/appups/#{target_app}#{override_note(result)}"
         ])
 
         :ok
@@ -205,16 +206,26 @@ defmodule Mix.Tasks.Compile.GenAppup do
     end
   end
 
+  # An appup written by hand for this upgrade is used as it is, see Jellyfish.Releases.Override
   defp build_appup(app, type, v1, v1_path, v2, v2_path, all_versions) do
-    case Appup.make(app, v1, v2, v1_path, v2_path) do
+    with :none <- Override.find(app, v1, v2),
+         {:ok, appup} <- Appup.make(app, v1, v2, v1_path, v2_path) do
+      write_appup_files!(app, type, v1, v2, {:generated, appup})
+      {:ok, %{versions: all_versions, current: v2, appup: true}}
+    else
+      {:ok, override} when is_binary(override) ->
+        write_appup_files!(app, type, v1, v2, {:override, override})
+        {:ok, %{versions: all_versions, current: v2, appup: true, override: override}}
+
       {:error, _} = err ->
         err
-
-      {:ok, appup} ->
-        write_appup_files!(app, type, v1, v2, appup)
-        {:ok, %{versions: all_versions, current: v2, appup: true}}
     end
   end
+
+  defp override_note(%{override: override}),
+    do: ", from the override #{Path.relative_to_cwd(override)}"
+
+  defp override_note(_result), do: ""
 
   defp write_appup_files!(app, type, v1, v2, appup) do
     dir_path = Path.join(["rel", "appups", "#{app}"])
@@ -232,9 +243,15 @@ defmodule Mix.Tasks.Compile.GenAppup do
       """
 
     File.mkdir_p!(dir_path)
-    :ok = write_term("#{dir_path}/#{v1}_to_#{v2}.appup", appup)
+    :ok = write_appup("#{dir_path}/#{v1}_to_#{v2}.appup", appup)
     File.write!("#{dir_path}/jellyfish.json", jellyfish_file)
   end
+
+  defp write_appup(path, {:generated, appup}), do: write_term(path, appup)
+
+  # Copied and not written again, so the comments that say why it was written by hand
+  # reach the release
+  defp write_appup(path, {:override, override}), do: File.cp!(override, path)
 
   defp jellyfish_version do
     ensure_app_loaded!(:jellyfish)
