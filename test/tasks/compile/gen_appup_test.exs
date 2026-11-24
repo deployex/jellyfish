@@ -99,6 +99,104 @@ defmodule Mix.Tasks.Compile.GenAppupTest do
     assert generator =~ ~r|^jellyfish/\d+\.\d+\.\d+|
   end
 
+  describe "with an override" do
+    setup do
+      version = Mix.Project.config()[:version]
+      seed_previous_release("0.0.1")
+
+      %{version: version, generated: "rel/appups/#{@app_name}/0.0.1_to_#{version}.appup"}
+    end
+
+    defp write_override!(app, name, contents) do
+      path = Path.join(["rel", "appup_overrides", "#{app}", name])
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, contents)
+      path
+    end
+
+    test "uses the appup written by hand for this upgrade, as it is", ctx do
+      override = """
+      %% The generated instructions do not work for this upgrade, these stop and start it.
+      {"#{ctx.version}",
+       [{"0.0.1", [{stop, ['Elixir.Jellyfish']}, {start, ['Elixir.Jellyfish']}]}],
+       [{"0.0.1", []}]}.
+      """
+
+      path = write_override!(@app_name, "0.0.1_to_#{ctx.version}.appup", override)
+
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert :ok = GenAppup.run(release_name: @app_name)
+        end)
+
+      assert output =~ "from the override #{path}"
+
+      # With its comments, which say why it was written
+      assert File.read!(ctx.generated) == override
+
+      assert %{"from" => "0.0.1", "to" => to} =
+               "rel/appups/#{@app_name}/jellyfish.json" |> File.read!() |> Jason.decode!()
+
+      assert to == ctx.version
+    end
+
+    @tag :capture_log
+    test "ignores the override of another upgrade", ctx do
+      write_override!(@app_name, "0.0.1_to_9.9.9.appup", """
+      {"9.9.9", [{"0.0.1", [{stop, ['Elixir.Jellyfish']}]}], [{"0.0.1", []}]}.
+      """)
+
+      write_override!(:another_app, "0.0.1_to_#{ctx.version}.appup", """
+      {"#{ctx.version}", [{"0.0.1", [{stop, ['Elixir.Jellyfish']}]}], [{"0.0.1", []}]}.
+      """)
+
+      assert :ok = GenAppup.run(release_name: @app_name)
+
+      # The previous release is a copy of the current one, so nothing changed
+      assert {:ok, [{_to, [{~c"0.0.1", []}], [{~c"0.0.1", []}]}]} =
+               :file.consult(String.to_charlist(ctx.generated))
+    end
+
+    @tag :capture_log
+    test "fails the build when the override is not an appup for the versions of its name",
+         ctx do
+      for contents <- [
+            ~s|{"9.9.9", [{"0.0.1", []}], [{"0.0.1", []}]}.\n|,
+            ~s|{"#{ctx.version}", [{"0.0.2", []}], [{"0.0.2", []}]}.\n|,
+            "not_an_appup.\n",
+            "{unterminated"
+          ] do
+        write_override!(@app_name, "0.0.1_to_#{ctx.version}.appup", contents)
+
+        assert {:error, [%Mix.Task.Compiler.Diagnostic{severity: :error, message: message}]} =
+                 GenAppup.run(release_name: @app_name)
+
+        assert message =~ "invalid_override"
+        refute File.exists?(ctx.generated)
+      end
+    end
+
+    @tag :capture_log
+    test "says which versions the override has when they are not the expected ones", ctx do
+      # No downgrade, which the relup of a hot upgrade is also built with
+      write_override!(
+        @app_name,
+        "0.0.1_to_#{ctx.version}.appup",
+        ~s|{"#{ctx.version}", [{"0.0.1", []}], []}.\n|
+      )
+
+      assert {:error, [%Mix.Task.Compiler.Diagnostic{message: message}]} =
+               GenAppup.run(release_name: @app_name)
+
+      version = inspect(ctx.version)
+
+      assert message =~
+               ~s|expected: [to: #{version}, upgrade_from: ["0.0.1"], downgrade_to: ["0.0.1"]]|
+
+      assert message =~ ~s|got: [to: #{version}, upgrade_from: ["0.0.1"], downgrade_to: []]|
+    end
+  end
+
   @tag :capture_log
   test "when multiple previous releases exist, upgrades from the highest version" do
     version = Mix.Project.config()[:version]
