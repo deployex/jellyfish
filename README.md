@@ -89,6 +89,21 @@ A dependency that you declare with `runtime: false` or for `:dev`/`:test` only i
 > Before performing a hot-upgrade, check if the dependency supports hot-upgrades between versions, review the changelog for structural changes (e.g., process state modifications, API changes), and check stateful processes like GenServers, Agents, etc. that may require special handling.
 > You can do this analysis yourself, or ask an LLM-based coding assistant to review the diff and changelog between the two versions and flag anything that looks unsafe for a hot-upgrade - but either way, someone should look before you ship it.
 
+### Which previous version is used
+
+An appup upgrades from one previous version, the highest one found in the release directory that an earlier build left on disk, other than the version being built.
+"Highest" is decided this way, and [rebar3_jellyfish_plugin](https://github.com/deployex/rebar3_jellyfish_plugin) follows the same order:
+
+ * Versions are compared as [Semantic Versioning](https://semver.org/#spec-item-11) says: `0.10.0` is higher than `0.9.0`, and a pre-release is lower than its release, `1.0.0-rc1` below `1.0.0`.
+ * Build metadata, `1.0.0+abc`, is ignored.
+ * A `git describe` version, `1.0.0-4-gabc1234`, is higher than `1.0.0`, and more commits is higher.
+ * A version that is not `MAJOR.MINOR.PATCH` is not ordered in a useful way, use one that is.
+
+> [!NOTE]
+> A build identifier after the version, such as `0.1.0-9cad9cd`, is ordered as text.
+> Two builds of the same version are therefore not ordered by when they were built.
+> When versions are named this way, keep a single previous version in the release directory: build the version that is deployed, then the new one.
+
 # Appup file
 
 If for any reason you need to change the order of the modules or add new commands in the appup file, you have 2 options:
@@ -99,6 +114,25 @@ EDIT_APPUP=true MIX_ENV=prod mix release
 ```
 
  2. Untar the release, do the changes in the appup files and tar it again.
+
+## Known Limitations
+
+Jellyfish reads compiled modules, so what a release changes outside of them is not in the appup it generates.
+
+### Supervisor child changes
+
+When a supervisor module changes, Jellyfish always emits the generic `{update, Module, supervisor}` instruction.
+This instruction lets the release handler pick up changes to an existing child's spec, such as its start function or restart type, but only once that child restarts for some other reason: a running child keeps its old spec until then.
+Per the [Erlang appup cookbook](https://www.erlang.org/doc/system/appup_cookbook.html), a new child specification is added automatically, but the matching child process is not started, and a removed child's process is not stopped.
+So if a release adds or removes a supervisor's child, the generated appup alone will not start or stop that process.
+The upgrade will look successful while leaving a new worker not started, or a removed one still running.
+Use `EDIT_APPUP` to add the missing `{apply, {supervisor, start_child, [...]}}`, `{apply, {supervisor, terminate_child, [...]}}`, or `{apply, {supervisor, delete_child, [...]}}` instructions by hand whenever a release changes a supervisor's children, not just its properties.
+
+### NIFs and non-OTP processes
+
+The purge mode described in [Purge semantics](#purge-semantics) is safe for a `GenServer`, a `:gen_statem` or a supervisor, since the standard upgrade protocol suspends and resumes those processes around the code swap, so none of them is still running old code by the time the purge happens.
+It is not safe for a process that does not go through that protocol, such as a plain `spawn_link` loop, a `Task` that runs for a long time, or a process blocked inside a NIF call: it can still be executing old code when the purge runs, and is killed.
+If a release touches a NIF-loaded module or a hand-rolled, non-OTP process, review whether `brutal_purge` is appropriate before shipping the upgrade, and use `EDIT_APPUP` to switch the relevant instruction to `soft_purge` if it is not.
 
 # Relup file
 
