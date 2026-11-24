@@ -102,18 +102,18 @@ defmodule Jellyfish.Releases.Appup do
 
     {deleted, added, changed} = :beam_lib.cmp_dirs(v1_path, v2_path)
 
+    # beam_lib.cmp_dirs/2 reports every file whose chunks differ, and they always do: the
+    # previous version comes from a release, where `mix release` strips the beams of
+    # their debug information, documentation and compile information, and the new one
+    # from the build directory, where they are complete. Even two complete beams of the
+    # same source differ, in the debug information the compiler writes.
+    #
+    # The MD5 of a beam covers what the module runs, its code, literals, exports,
+    # imports and attributes, and none of that. A module with the same MD5 on both
+    # sides has nothing to load.
     actually_changed =
-      changed
-      |> Enum.filter(fn {v1_beam, v2_beam} ->
-        case :beam_lib.cmp(v1_beam, v2_beam) do
-          {:error, :beam_lib, {:chunks_different, ~c"Dbgi"}} ->
-            # Due to the way Elixir generates core ast, all beams will always show as changed,
-            # so we ignore this chunk in the comparison for changed beams
-            false
-
-          _ ->
-            true
-        end
+      Enum.filter(changed, fn {v1_beam, v2_beam} ->
+        code_md5(v1_beam) != code_md5(v2_beam)
       end)
 
     up_instructions =
@@ -188,6 +188,14 @@ defmodule Jellyfish.Releases.Appup do
       is_otp_callback_proc,
       depends_on
     )
+  end
+
+  # A beam that cannot be read is taken as changed
+  defp code_md5(file) do
+    case :beam_lib.md5(file) do
+      {:ok, {_module, md5}} -> md5
+      {:error, :beam_lib, _reason} -> make_ref()
+    end
   end
 
   defp beam_attributes(file) do
