@@ -10,6 +10,7 @@
 
 ### Enhancements
  * [`PULL-25`](https://github.com/deployex/jellyfish/pull/25) Generate appups for transitive dependencies, including the ones of umbrella child apps
+ * [`PULL-27`](https://github.com/deployex/jellyfish/pull/27) Document the known limitations and which previous version an appup is generated from
 
 # 🚀 Previous Releases
  * [0.2.9 🚀 (2026-11-21)](https://github.com/deployex/jellyfish/blob/v0.2.9/CHANGELOG.md)
