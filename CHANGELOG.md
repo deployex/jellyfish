@@ -1,18 +1,18 @@
 # CHANGELOG (v0.2.x)
 
-## 0.2.10 🚀 (2026-11-24)
+## 0.2.11 🚀 (2026-11-24)
 
-### Backwards incompatible changes for 0.2.9
+### Backwards incompatible changes for 0.2.10
  * None
 
 ### Bug fixes
- * [`PULL-24`](https://github.com/deployex/jellyfish/pull/24) Generate soft updates for OTP behaviours without code_change
+ * [`PULL-28`](https://github.com/deployex/jellyfish/pull/28) Leave modules whose code did not change out of the appup
 
 ### Enhancements
- * [`PULL-25`](https://github.com/deployex/jellyfish/pull/25) Generate appups for transitive dependencies, including the ones of umbrella child apps
- * [`PULL-27`](https://github.com/deployex/jellyfish/pull/27) Document the known limitations and which previous version an appup is generated from
+ * None
 
 # 🚀 Previous Releases
+ * [0.2.10 🚀 (2026-11-24)](https://github.com/deployex/jellyfish/blob/v0.2.10/CHANGELOG.md)
  * [0.2.9 🚀 (2026-11-21)](https://github.com/deployex/jellyfish/blob/v0.2.9/CHANGELOG.md)
  * [0.2.8 🚀 (2026-11-20)](https://github.com/deployex/jellyfish/blob/v0.2.8/CHANGELOG.md)
  * [0.2.7 🚀 (2026-11-13)](https://github.com/deployex/jellyfish/blob/v0.2.7/CHANGELOG.md)
