@@ -38,12 +38,6 @@ With `brutal_purge`, any process still executing old code when the purge runs is
 This is the same default every appup-generation tool in this family uses, and matches what `systools:make_relup` itself defaults to when no purge mode is given.
 If a specific module needs the safer `soft_purge` behavior (the purge is deferred, and `release_handler:install_release/1` returns `{error, {old_processes, Mod}}` instead of killing anything), edit the generated `.appup` by hand, or use the `EDIT_APPUP` flow described below, before packaging the release.
 
-References:
-
- * [Distillery](https://github.com/bitwalker/distillery)
- * [Forecastle](https://github.com/ausimian/forecastle)
- * [Relx](https://github.com/erlware/relx/blob/main/priv/templates/install_upgrade_escript)
-
 ## Installation
 
 Add `jellyfish` to your dependencies in `mix.exs`:
@@ -395,6 +389,10 @@ Jellyfish source code is licensed under the [MIT License](LICENSE.md).
 
 # References
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
+ * Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/jellyfish>.
+References:
+ * [Distillery](https://github.com/bitwalker/distillery)
+ * [Forecastle](https://github.com/ausimian/forecastle)
+ * [Relx](https://github.com/erlware/relx/blob/main/priv/templates/install_upgrade_escript)
