@@ -287,6 +287,80 @@ defmodule Mix.Tasks.Compile.GenAppupTest do
     assert :ok = GenAppup.run(release_name: @app_name)
   end
 
+  describe "the version a dependency is upgraded from" do
+    setup do
+      # The dependency as this build has it, 0.1.0
+      fake_app_root = Path.join(System.tmp_dir!(), "jellyfish_gen_appup_test_previous")
+      fake_app_ebin = Path.join(fake_app_root, "fakeapp-0.1.0/ebin")
+      File.rm_rf!(fake_app_root)
+      File.mkdir_p!(fake_app_ebin)
+      File.write!(Path.join(fake_app_ebin, "fakeapp.app"), fakeapp("0.1.0"))
+
+      Application.unload(:fakeapp)
+      fake_app_ebin_path = String.to_charlist(fake_app_ebin)
+      :code.add_patha(fake_app_ebin_path)
+
+      Mix.Project.push(Mix.Tasks.Compile.GenAppupTest.FixtureProject)
+
+      on_exit(fn ->
+        Mix.Project.pop()
+        :code.del_path(fake_app_ebin_path)
+        Application.unload(:fakeapp)
+        File.rm_rf!(fake_app_root)
+      end)
+
+      # The project was 0.0.1 in the previous release, and an older version of the
+      # dependency is still in the release directory, from a release before that one
+      seed_previous_release("0.0.1")
+      old_ebin = Path.join([@output_dir, "lib", "fakeapp-0.0.9", "ebin"])
+      File.mkdir_p!(old_ebin)
+      File.write!(Path.join(old_ebin, "fakeapp.app"), fakeapp("0.0.9"))
+
+      {:ok, appup_dir: Path.join(["rel", "appups", "fakeapp"])}
+    end
+
+    defp fakeapp(version) do
+      ~s|{application, fakeapp, [{vsn, "#{version}"}, {applications, []}, | <>
+        ~s|{description, ""}, {modules, []}]}.|
+    end
+
+    defp write_previous_rel!(fakeapp_version) do
+      dir = Path.join([@output_dir, "releases", "0.0.1"])
+      File.mkdir_p!(dir)
+
+      File.write!(
+        Path.join(dir, "#{@app_name}.rel"),
+        ~s|{release,{"#{@app_name}","0.0.1"},{erts,"16.0"},| <>
+          ~s|[{#{@app_name},"0.0.1"},{fakeapp,"#{fakeapp_version}"}]}.|
+      )
+    end
+
+    @tag :capture_log
+    test "is the one the previous release shipped, not an older one still around", ctx do
+      write_previous_rel!("0.0.9")
+
+      assert :ok = GenAppup.run(release_name: @app_name)
+      assert File.exists?(Path.join(ctx.appup_dir, "0.0.9_to_0.1.0.appup"))
+    end
+
+    @tag :capture_log
+    test "gets no appup when the previous release already shipped this version", ctx do
+      write_previous_rel!("0.1.0")
+      File.mkdir_p!(ctx.appup_dir)
+      File.write!(Path.join(ctx.appup_dir, "0.0.9_to_0.1.0.appup"), "from an earlier build")
+
+      assert :ok = GenAppup.run(release_name: @app_name)
+      refute File.exists?(Path.join(ctx.appup_dir, "0.0.9_to_0.1.0.appup"))
+    end
+
+    @tag :capture_log
+    test "falls back to the versions that are there when the previous release has no .rel",
+         ctx do
+      assert :ok = GenAppup.run(release_name: @app_name)
+      assert File.exists?(Path.join(ctx.appup_dir, "0.0.9_to_0.1.0.appup"))
+    end
+  end
+
   describe "transitive dependencies" do
     setup do
       shell = Mix.shell()

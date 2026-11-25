@@ -148,7 +148,7 @@ defmodule Mix.Tasks.Compile.GenAppup do
     v2 = app_vsn(app)
     v2_path = Application.app_dir(app)
     all_versions = discover_versions(app, output_dir)
-    previous_version = Map.delete(all_versions, v2)
+    previous_version = all_versions |> Map.delete(v2) |> of_previous_release(type, app)
 
     if map_size(previous_version) == 0 do
       # NOTE: No previous releases exist
@@ -156,9 +156,48 @@ defmodule Mix.Tasks.Compile.GenAppup do
       {:ok, %{versions: Map.keys(all_versions), current: v2, appup: false}}
     else
       {v1, v1_path} = resolve_upgrade_source(upgrade_from, previous_version)
+      if type == :project, do: remember_previous_release(output_dir, app, v1)
       build_appup(app, type, v1, v1_path, v2, v2_path, Map.keys(all_versions))
     end
   end
+
+  # The release directory keeps the libraries of every release built in it, so a dependency
+  # that moved once has two versions there for good. The one to upgrade from is the one the
+  # previous release shipped, which is what its .rel says, and not the highest one around:
+  # a dependency that has not moved since would get the same appup again in every release,
+  # and one that went down and up again would be upgraded from a version no node runs.
+  #
+  # The previous release is the one that has the project at the version it upgrades from.
+  # Without its .rel, a dependency is checked against the versions that are there, as before
+  defp remember_previous_release(output_dir, app, v1) do
+    applications =
+      [output_dir, "releases", "*", "*.rel"]
+      |> Path.join()
+      |> Path.wildcard()
+      |> Enum.find_value(fn rel_file ->
+        with {:ok, [{:release, _name, _erts, applications}]} <- read_terms(rel_file),
+             versions = Map.new(applications, &{elem(&1, 0), to_string(elem(&1, 1))}),
+             ^v1 <- versions[app] do
+          versions
+        else
+          _other -> nil
+        end
+      end)
+
+    if applications && is_nil(Cache.previous_release()),
+      do: Cache.store_previous_release(applications)
+
+    :ok
+  end
+
+  defp of_previous_release(previous_version, :dependency, app) do
+    case Cache.previous_release() do
+      nil -> previous_version
+      applications -> Map.take(previous_version, List.wrap(applications[app]))
+    end
+  end
+
+  defp of_previous_release(previous_version, _type, _app), do: previous_version
 
   # Does app exist?
   defp ensure_app_loaded!(app) do
