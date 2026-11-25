@@ -58,6 +58,22 @@ defmodule Jellyfish.Cache do
   @spec get_app(atom() | String.t()) :: %{version: String.t()} | nil
   def get_app(app), do: Process.get(app)
 
+  @doc """
+  Keeps the applications of the release this build upgrades from, as a map of application
+  to version, for the dependencies that are checked after the project.
+  """
+  @spec store_previous_release(%{atom() => String.t()}) :: :ok
+  def store_previous_release(applications) do
+    Process.put("previous-release", applications)
+    :ok
+  end
+
+  @doc """
+  The applications of the release this build upgrades from, `nil` when it is not known.
+  """
+  @spec previous_release() :: %{atom() => String.t()} | nil
+  def previous_release, do: Process.get("previous-release")
+
   ### ==========================================================================
   ### Private functions
   ### ==========================================================================
