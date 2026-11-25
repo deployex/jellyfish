@@ -152,6 +152,7 @@ defmodule Mix.Tasks.Compile.GenAppup do
 
     if map_size(previous_version) == 0 do
       # NOTE: No previous releases exist
+      remove_stale_appups(app, v2, nil)
       {:ok, %{versions: Map.keys(all_versions), current: v2, appup: false}}
     else
       {v1, v1_path} = resolve_upgrade_source(upgrade_from, previous_version)
@@ -243,8 +244,29 @@ defmodule Mix.Tasks.Compile.GenAppup do
       """
 
     File.mkdir_p!(dir_path)
+    remove_stale_appups(app, v2, "#{v1}_to_#{v2}.appup")
     :ok = write_appup("#{dir_path}/#{v1}_to_#{v2}.appup", appup)
     File.write!("#{dir_path}/jellyfish.json", jellyfish_file)
+  end
+
+  # rel/appups is kept between builds, and CopyAppup ships whatever it finds there for the
+  # version being released. An appup an earlier build wrote for this version, from a version
+  # this build is not upgrading from, would go into the release as if it were this upgrade:
+  # a dependency that has not moved since would be announced as moving in every release
+  defp remove_stale_appups(app, v2, keep) do
+    dir_path = Path.join(["rel", "appups", "#{app}"])
+
+    stale =
+      "#{dir_path}/*_to_#{v2}.appup"
+      |> Path.wildcard()
+      |> Enum.reject(&(Path.basename(&1) == keep))
+
+    Enum.each(stale, &File.rm!/1)
+
+    # The metadata describes the last appup written, which no longer exists
+    if stale != [] and is_nil(keep), do: File.rm("#{dir_path}/jellyfish.json")
+
+    :ok
   end
 
   defp write_appup(path, {:generated, appup}), do: write_term(path, appup)

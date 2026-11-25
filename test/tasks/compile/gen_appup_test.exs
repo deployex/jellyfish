@@ -197,6 +197,55 @@ defmodule Mix.Tasks.Compile.GenAppupTest do
     end
   end
 
+  describe "appups left by an earlier build" do
+    setup do
+      version = Mix.Project.config()[:version]
+      appup_dir = Path.join(["rel", "appups", "#{@app_name}"])
+      File.mkdir_p!(appup_dir)
+
+      {:ok, version: version, appup_dir: appup_dir}
+    end
+
+    @tag :capture_log
+    test "removes the one for the current version when this build upgrades from nothing", ctx do
+      stale = Path.join(ctx.appup_dir, "0.0.1_to_#{ctx.version}.appup")
+      File.write!(stale, "stale")
+      File.write!(Path.join(ctx.appup_dir, "jellyfish.json"), "{}")
+
+      assert :ok = GenAppup.run(release_name: @app_name)
+
+      refute File.exists?(stale)
+      refute File.exists?(Path.join(ctx.appup_dir, "jellyfish.json"))
+    end
+
+    @tag :capture_log
+    test "keeps the ones for other versions", ctx do
+      other = Path.join(ctx.appup_dir, "0.0.1_to_0.0.2.appup")
+      File.write!(other, "other")
+      File.write!(Path.join(ctx.appup_dir, "jellyfish.json"), "{}")
+
+      assert :ok = GenAppup.run(release_name: @app_name)
+
+      assert File.exists?(other)
+      assert File.exists?(Path.join(ctx.appup_dir, "jellyfish.json"))
+    end
+
+    @tag :capture_log
+    test "removes the one from another version when this build writes its own", ctx do
+      stale = Path.join(ctx.appup_dir, "0.0.1_to_#{ctx.version}.appup")
+      File.write!(stale, "stale")
+      seed_previous_release("0.0.2")
+
+      assert :ok = GenAppup.run(release_name: @app_name)
+
+      refute File.exists?(stale)
+      assert File.exists?(Path.join(ctx.appup_dir, "0.0.2_to_#{ctx.version}.appup"))
+
+      assert %{"from" => "0.0.2"} =
+               ctx.appup_dir |> Path.join("jellyfish.json") |> File.read!() |> Jason.decode!()
+    end
+  end
+
   @tag :capture_log
   test "when multiple previous releases exist, upgrades from the highest version" do
     version = Mix.Project.config()[:version]
